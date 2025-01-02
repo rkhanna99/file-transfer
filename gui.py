@@ -19,7 +19,7 @@ def browse_folder(entry_var, creation_dates=None):
             for file in os.listdir(folder):
                 file_path = os.path.join(folder, file)
                 if os.path.isfile(file_path):
-                    creation_date = helpers.get_creation_date(file_path).split(" ")[0]  # Only use the date part
+                    creation_date = helpers.extract_file_date(file_path).split(" ")[0]  # Only use the date part
                     if creation_date:
                         creation_dates.setdefault(creation_date, []).append(file)
             print("Updated creation_dates:", creation_dates)
