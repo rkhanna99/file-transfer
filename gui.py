@@ -1,4 +1,6 @@
-import helpers, os
+import helpers, os, platform
+import tkinter as tk
+import sv_ttk
 from tkinter import Tk, Label, Entry, Button, filedialog, StringVar, messagebox, ttk, Toplevel, PhotoImage, Frame
 from tkcalendar import Calendar
 from datetime import datetime
@@ -6,26 +8,24 @@ from file_transfer import copy_files
 from PIL import Image, ImageTk
 from collections import defaultdict
 
+
+# Function to open a file dialog and set the selected folder in the entry field
 def browse_folder(entry_var, creation_dates=None):
-    """
-    Opens a folder selection dialog and updates the associated entry field.
-    Optionally collects file creation dates for highlighting.
-    """
     folder = filedialog.askdirectory()
     if folder:
         entry_var.set(folder)
         if creation_dates is not None:
             creation_dates.clear()
-            for file in os.listdir(folder):
-                file_path = os.path.join(folder, file)
-                if os.path.isfile(file_path):
-                    creation_date = helpers.get_creation_date(file_path).split(" ")[0]  # Only use the date part
-                    if creation_date:
-                        creation_dates.setdefault(creation_date, []).append(file)
+            # Efficient batch processing
+            file_dates = helpers.get_creation_dates_for_directory(folder)
+            for date in file_dates:
+                date_str = date.strftime("%Y-%m-%d")
+                creation_dates[date_str].append(date)
             print("Updated creation_dates:", creation_dates)
 
 
-def open_calendar(entry_var, creation_dates=None):
+
+def open_calendar(parent, entry_var, creation_dates=None):
     """
     Opens a pop-up calendar and updates the entry field with the selected date upon click.
     Highlights dates based on the creation_dates dictionary.
@@ -37,28 +37,29 @@ def open_calendar(entry_var, creation_dates=None):
 
     def highlight_dates():
         """Highlight dates with files created on those dates."""
-        for date, files in creation_dates.items():
+        cal.tag_config("highlight", background="yellow", foreground="black")
+        for date_str in creation_dates:
             try:
-                # Parse the date from the string
-                parsed_date = datetime.strptime(date, "%Y-%m-%d").date()
+                parsed_date = datetime.strptime(date_str, "%Y-%m-%d").date()
                 cal.calevent_create(parsed_date, "Files Exist", "highlight")
             except ValueError:
-                print(f"Error parsing date: {date}")
+                print(f"Error parsing date: {date_str}")
 
-    # Create a top-level window for the calendar
-    top = Toplevel(root)
+    top = tk.Toplevel(parent)
     top.title("Select Date")
 
     cal = Calendar(
-        top, font="Arial 14", selectmode='day', cursor="hand1", date_pattern="y-mm-dd"
+        top,
+        font="Arial 14",
+        selectmode='day',
+        cursor="hand1",
+        date_pattern="y-mm-dd"
     )
     cal.pack(fill="both", expand=True, padx=10, pady=10)
 
-    # Apply the highlighting
     if creation_dates:
         highlight_dates()
 
-    # Bind date selection to update the entry
     cal.bind("<<CalendarSelected>>", select_date)
 
 
@@ -83,7 +84,7 @@ def create_date_entry(parent, label_text, entry_var, creation_dates):
     calendar_icon = ImageTk.PhotoImage(calendar_icon)
 
     # Button with the resized calendar icon
-    Button(frame, image=calendar_icon, command=lambda: open_calendar(entry_var, creation_dates)).pack(side="left")
+    Button(frame, image=calendar_icon, command=lambda: open_calendar(parent, entry_var, creation_dates)).pack(side="left")
     
     # Keep reference to prevent garbage collection
     frame.calendar_icon = calendar_icon  
@@ -121,10 +122,17 @@ def start_copy():
 # Tkinter GUI setup
 root = Tk()
 root.title("File Transfer Tool")
-root.geometry("400x300")
+root.geometry("600x300")
 
 style = ttk.Style(root)
-style.theme_use('aqua')
+
+# Use a different theme for Windows and MacOS
+if platform.system() == 'Windows':
+    # For Windows
+    style.theme_use('vista')
+else:
+    # For Unix/Linux/MacOS
+    style.theme_use('aqua')
 
 # Initialize variables
 source_var = StringVar()
