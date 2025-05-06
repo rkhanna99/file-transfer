@@ -9,19 +9,34 @@ from PIL import Image, ImageTk
 from collections import defaultdict
 
 
+# Adding a global variable to store the map of the dates to the file paths
+global_date_map = defaultdict(list)
+
 # Function to open a file dialog and set the selected folder in the entry field
 def browse_folder(entry_var, creation_dates=None):
     folder = filedialog.askdirectory()
     if folder:
         entry_var.set(folder)
         if creation_dates is not None:
+            # Clear the previous dates
             creation_dates.clear()
+            global_date_map.clear()
             # Efficient batch processing
-            file_dates = helpers.get_creation_dates_for_directory(folder)
-            for date in file_dates:
+            file_date_map = helpers.get_creation_dates_for_directory(folder)
+
+            for date, file_path in file_date_map.items():
+                # Update the global map
+                global_date_map[date].extend(file_path)
+
+                # Update the creation_dates dictionary
                 date_str = date.strftime("%Y-%m-%d")
-                creation_dates[date_str].append(date)
+                if date_str not in creation_dates:
+                    creation_dates[date_str] = [date]
+                else:
+                    creation_dates[date_str].append(date)
+
             print("Updated creation_dates:", creation_dates)
+            print("Unique dates found:", len(creation_dates))
 
 
 
@@ -162,7 +177,9 @@ Entry(root, textvariable=file_type_var, width=10).grid(row=3, column=1, sticky="
 create_date_entry(root, "Start Date:", start_date_var, creation_dates)
 create_date_entry(root, "End Date:", end_date_var, creation_dates)
 
-Button(root, text="Start Copy", command=start_copy, bg="green", fg="white").grid(row=6, column=1, pady=20)
+# Only show the Start Copy button if the user has selected a source and destination folder
+if source_var.get() and destination_var.get():
+    Button(root, text="Start Copy", command=start_copy, bg="green", fg="white").grid(row=6, column=1, pady=20)
 
 if __name__ == "__main__":
     root.mainloop()

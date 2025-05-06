@@ -28,10 +28,24 @@ def copy_files(source_folder, destination_folder, max_workers=4, file_type=None,
     # Multithreaded file copying
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(shutil.copy2, os.path.join(source_folder, file_name), os.path.join(destination_folder, file_name))
+            executor.submit(copy_file, file_name, source_folder, destination_folder)
             for file_name in transfer_files
         ]
         for future in as_completed(futures):
             future.result()
     
     return len(transfer_files)
+
+
+# Helper function to copy a single file
+def copy_file(file_name, source_folder, destination_folder):
+    """
+    Copies a single file from source_folder to destination_folder.
+
+    Parameters:
+        file_name (str): Name of the file to copy.
+        source_folder (str): Path to the source directory.
+        destination_folder (str): Path to the destination directory.
+    """
+    shutil.copy2(os.path.join(source_folder, file_name), os.path.join(destination_folder, file_name))
+    print(f"Copied {file_name} to {destination_folder}")

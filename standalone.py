@@ -9,13 +9,16 @@ def copy_files(source_folder: str, destination_folder: str, max_workers: int=4, 
     # Check to see if the destination folder exists
     os.makedirs(destination_folder, exist_ok=True)
 
-    # Files to transfer
+    # Files to transfer and check if they already exist in the destination folder
     transfer_files = [
         f for f in os.listdir(source_folder)
         if (file_type is None or f.lower().endswith(file_type)) and
         (start_date is None or datetime.fromtimestamp(os.path.getmtime(os.path.join(source_folder, f))) >= start_date) and
-        (end_date is None or datetime.fromtimestamp(os.path.getmtime(os.path.join(source_folder, f))) <= end_date)
+        (end_date is None or datetime.fromtimestamp(os.path.getmtime(os.path.join(source_folder, f))) <= end_date) and
+        not os.path.exists(os.path.join(destination_folder, f))
     ]
+
+    print(f"Files to transfer: {transfer_files}")
 
     # Utilize Multithreading
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime as dt
 import json
 from PIL import Image
@@ -45,11 +46,11 @@ def collect_files_by_type(directory: str):
     return pillow_supported_imgs, raws_with_jpg, raws_without_jpg, others
 
 
-# Helper method to get the date taken of Pillow supported files
-def get_date_taken_pillow(pillow_supported_imgs):
+# Helper method to get the date taken of Pillow supported files (Will return a map of dates to the file paths)
+def get_date_taken_pillow(pillow_supported_imgs: dict) -> dict[dt.date, List[str]]:
     try:
         # Initialize a map to store the date taken values
-        date_map = {}
+        date_map = defaultdict(list)
 
         for file_name, file_path in pillow_supported_imgs.items():
             # Open the image file using Pillow
@@ -61,9 +62,8 @@ def get_date_taken_pillow(pillow_supported_imgs):
                     for tag_id, value in exif_data.items():
                         tag = TAGS.get(tag_id, tag_id)
                         if tag == 'DateTimeOriginal':
-                            # Convert the value to a datetime object and store it in the map
-                            date_taken = dt.strptime(value, '%Y:%m:%d %H:%M:%S')
-                            date_map[file_name] = date_taken.date()
+                            date_taken = dt.strptime(value, '%Y:%m:%d %H:%M:%S').date()
+                            date_map[date_taken].append(file_path)
                             break
     except Exception as e:
         print(f"Error retrieving date taken for {file_name}: {e}")
@@ -72,14 +72,14 @@ def get_date_taken_pillow(pillow_supported_imgs):
     return date_map
 
 # Helper method to get the date taken of the RAW files
-def get_date_taken_raw(raw_files) -> set[str]:
+def get_date_taken_raw(raw_files) -> dict[dt.date, List[str]]:
     # Set for all the datetimes
-    dates = set()
+    date_map = defaultdict(list)
 
     # Check if the RAW file list is empty
     if not raw_files:
         print("No RAW files found that don't have a corresponding jpg")
-        return dates
+        return date_map
 
     # Set the needed tags for the batch exiftool call
     tags = [
@@ -101,42 +101,52 @@ def get_date_taken_raw(raw_files) -> set[str]:
             for tag in ['EXIF:DateTimeOriginal', 'QuickTime:CreationDate', 'EXIF:CreateDate', 'XMP:CreateDate']:
                 if tag in data.keys():
                     date_taken = data[tag]
-                    # Convert to datetime object and return the date part
+                    # Convert to datetime object and update the date_map
                     if isinstance(date_taken, str):
-                        date_taken = dt.strptime(date_taken, '%Y:%m:%d %H:%M:%S')
-                        dates.add(date_taken.date())
+                        date_taken = dt.strptime(date_taken, '%Y:%m:%d %H:%M:%S').date()
+                        date_map[date_taken].append(data['SourceFile'])
                     elif isinstance(date_taken, dt):
-                        dates.add(date_taken.date())
+                        dates_taken = date_taken.date()
+                        date_map[dates_taken].append(data['SourceFile'])
                     break
 
     except Exception as e:
         print(f"Error retrieving dates for the RAW files: {e}")
     
-    return dates
+    return date_map
 
 
-"""Gets creation dates for all files in a directory."""
-def get_creation_dates_for_directory(directory) -> set[str]:
+# Helper method to get the creation dates for all files in a directory (Will return a set of dates and a map of dates to the file paths)
+def get_creation_dates_for_directory(directory) -> dict[dt.date, List[str]]:
 
-    # Set for all the datetimes
-    dates = set()
-    is_windows = platform.system() == 'Windows'
+    # Return a map of dates to the file paths
+    date_map = defaultdict(list)
+    
 
     # Collect all the files in the directory by type
     pillow_supported_imgs, raws_with_jpg, raws_without_jpg, others = collect_files_by_type(directory)
 
     # Get the date taken for the Pillow supported images
-    pillow_dates = get_date_taken_pillow(pillow_supported_imgs)
-    if pillow_dates:
-        dates.update(pillow_dates.values())
+    pillow_date_map = get_date_taken_pillow(pillow_supported_imgs)
+    if pillow_date_map:
+        for date_taken, file_paths in pillow_date_map.items():
+            if date_map.get(date_taken) is None:
+                date_map[date_taken] = file_paths
+            else:
+                date_map[date_taken].extend(file_paths)
 
     # Get the date taken for the RAW files (no need to process raws with jpgs)
     if raws_without_jpg:
-        raw_dates = get_date_taken_raw(raws_without_jpg)
-        if raw_dates:
-            dates.update(raw_dates)
+        raw_date_map = get_date_taken_raw(raws_without_jpg)
+        if raw_date_map:
+            for date_taken, file_paths in raw_date_map.items():
+                if date_map.get(date_taken) is None:
+                    date_map[date_taken] = file_paths
+                else:
+                    date_map[date_taken].extend(file_paths)
 
     # Get the date taken for the other files (we will default to the file creation date)
+    is_windows = platform.system() == 'Windows'
     for file_path in others:
         try:
             # Get the file creation time
@@ -146,17 +156,26 @@ def get_creation_dates_for_directory(directory) -> set[str]:
                 stat = os.stat(file_path)
                 creation_time = stat.st_birthtime if hasattr(stat, 'st_birthtime') else stat.st_mtime
 
-            # Convert to datetime object and return the date part
+            # Convert to datetime object and update the date map
             date_taken = dt.fromtimestamp(creation_time).date()
-            dates.add(date_taken)
+            if date_map.get(date_taken) is None:
+                date_map[date_taken] = [file_path]
+            else:
+                date_map[date_taken].append(file_path)
+
         except Exception as e:
             print(f"Error retrieving date for {file_path}: {e}")
     
-    return dates
+    return date_map
 
+# Test the helper methods here if needed
 if __name__ == "__main__":
     #directory_path = "C:/Users/rahul/OneDrive/Pictures/Switzerland 2024/JPGs"
     directory_path = "E:/DCIM/100_FUJI"
-    dates = get_creation_dates_for_directory(directory_path)
+    date_map = get_creation_dates_for_directory(directory_path)
+
+    # Return a set of dates from the date_map
+    dates = set(date_map.keys())
     print(f"Dates: {dates}")
+    print(f"Unique Dates: {len(dates)}")
 
