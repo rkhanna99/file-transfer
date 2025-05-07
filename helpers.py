@@ -13,7 +13,7 @@ EXIFTOOL_PATH = os.path.join(os.path.dirname(__file__), 'bin', 'exiftool.exe')
 # Helper method to sort all files by type in a directory (Pillow supported images, RAW files with a corresponding jpg, RAW files without a corresponding jpg, and others)
 def collect_files_by_type(directory: str):
     pillow_supported_imgs = {}
-    raws_with_jpg = []
+    raws_with_jpg = {}
     raws_without_jpg = []
     others = []
 
@@ -38,16 +38,17 @@ def collect_files_by_type(directory: str):
 
     # Iterate through the raw candidates to see if they have a jpg file in the same directory
     for base_name, raw_path in raw_candidates.items():
+        # If the base name is in the pillow supported images, then we can add it to the lookup table
         if base_name in pillow_supported_imgs:
-            raws_with_jpg.append(raw_path)
+            raws_with_jpg[base_name] = raw_path
         else:
             raws_without_jpg.append(raw_path)    
 
     return pillow_supported_imgs, raws_with_jpg, raws_without_jpg, others
 
 
-# Helper method to get the date taken of Pillow supported files (Will return a map of dates to the file paths)
-def get_date_taken_pillow(pillow_supported_imgs: dict) -> dict[dt.date, List[str]]:
+# Helper method to get the date taken of Pillow supported files and corresponding RAW files (Will return a map of dates to the file paths)
+def get_date_taken_pillow(pillow_supported_imgs: dict, raws_with_jpg: dict) -> dict[dt.date, List[str]]:
     try:
         # Initialize a map to store the date taken values
         date_map = defaultdict(list)
@@ -64,6 +65,12 @@ def get_date_taken_pillow(pillow_supported_imgs: dict) -> dict[dt.date, List[str
                         if tag == 'DateTimeOriginal':
                             date_taken = dt.strptime(value, '%Y:%m:%d %H:%M:%S').date()
                             date_map[date_taken].append(file_path)
+
+                            # Check if the base name is in the RAW files with jpgs loookup table
+                            base_name = os.path.splitext(file_name)[0]
+                            corresponding_raw_path = raws_with_jpg[base_name]
+                            if corresponding_raw_path:
+                                date_map[date_taken].append(corresponding_raw_path)
                             break
     except Exception as e:
         print(f"Error retrieving date taken for {file_name}: {e}")
@@ -71,7 +78,7 @@ def get_date_taken_pillow(pillow_supported_imgs: dict) -> dict[dt.date, List[str
 
     return date_map
 
-# Helper method to get the date taken of the RAW files
+# Helper method to get the date taken of the RAW files that don't have a corresponding jpg (Will return a map of dates to the file paths)
 def get_date_taken_raw(raw_files) -> dict[dt.date, List[str]]:
     # Set for all the datetimes
     date_map = defaultdict(list)
@@ -127,7 +134,7 @@ def get_creation_dates_for_directory(directory) -> dict[dt.date, List[str]]:
     pillow_supported_imgs, raws_with_jpg, raws_without_jpg, others = collect_files_by_type(directory)
 
     # Get the date taken for the Pillow supported images
-    pillow_date_map = get_date_taken_pillow(pillow_supported_imgs)
+    pillow_date_map = get_date_taken_pillow(pillow_supported_imgs, raws_with_jpg)
     if pillow_date_map:
         for date_taken, file_paths in pillow_date_map.items():
             if date_map.get(date_taken) is None:

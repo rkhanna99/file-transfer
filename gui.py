@@ -104,7 +104,7 @@ def create_date_entry(parent, label_text, entry_var, creation_dates):
     # Keep reference to prevent garbage collection
     frame.calendar_icon = calendar_icon  
 
-
+# Method to start the file copy process
 def start_copy():
     source = source_var.get()
     destination = destination_var.get()
@@ -129,7 +129,7 @@ def start_copy():
         return
 
     try:
-        file_count = copy_files(source, destination, workers, file_type, start_date, end_date)
+        file_count = copy_files(global_date_map, source, destination, workers, file_type, start_date, end_date)
         messagebox.showinfo("Success", f"Transferred {file_count} files successfully!")
     except Exception as e:
         messagebox.showerror("Error", str(e))
@@ -178,8 +178,8 @@ create_date_entry(root, "Start Date:", start_date_var, creation_dates)
 create_date_entry(root, "End Date:", end_date_var, creation_dates)
 
 # Only show the Start Copy button if the user has selected a source and destination folder
-if source_var.get() and destination_var.get():
-    Button(root, text="Start Copy", command=start_copy, bg="green", fg="white").grid(row=6, column=1, pady=20)
+start_button = Button(root, text="Start Copy", command=start_copy, bg="green", fg="white")
+start_button.grid(row=6, column=1, pady=20)
 
 if __name__ == "__main__":
     root.mainloop()
